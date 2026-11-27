@@ -1,0 +1,11 @@
+#!/bin/sh
+# Register a weekly update check (Mon 04:00) for fmx-update.
+# The check only writes /tmp/fmx1-update-available; installing is manual:
+# run `fmx-update` in a terminal.
+CRON_FILE="/etc/crontabs/root"
+LINE="0 4 * * 1 /usr/bin/fmx-update check"
+touch "$CRON_FILE"
+grep -qF "/usr/bin/fmx-update check" "$CRON_FILE" || echo "$LINE" >> "$CRON_FILE"
+/etc/init.d/cron enable 2>/dev/null
+/etc/init.d/cron restart 2>/dev/null
+exit 0
