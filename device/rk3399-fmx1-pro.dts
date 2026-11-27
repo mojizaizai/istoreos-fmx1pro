@@ -1,7 +1,7 @@
 /dts-v1/;
 
 / {
-	compatible = "rockchip,fmx1_pro\0rockchip,rk3399";
+	compatible = "rockchip,fmx1-pro\0rockchip,rk3399";
 	interrupt-parent = <0x01>;
 	#address-cells = <0x02>;
 	#size-cells = <0x02>;

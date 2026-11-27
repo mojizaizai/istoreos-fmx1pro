@@ -56,7 +56,7 @@ jobs:
           echo "build stamp: $STAMP"
 
       - name: Restore build cache (toolchain + ccache)
-        uses: klever1988/cachewrtbuild@main
+        uses: klever1988/cachewrtbuild@b729f807837dbc3455d02fd35192660d9b662121
         with:
           ccache: 'true'
           mixkey: 'istoreos-24.10-armv8-fmx1pro'
@@ -65,9 +65,9 @@ jobs:
       - name: Use official build config (easepi-r1 baseline), FMX1 Pro only
         run: |
           cd openwrt
-          wget --no-check-certificate -O feeds.conf \
+          wget -O feeds.conf \
             "https://fw0.koolcenter.com/iStoreOS/easepi-r1/feeds.conf"
-          wget --no-check-certificate -O .config \
+          wget -O .config \
             "https://fw0.koolcenter.com/iStoreOS/easepi-r1/config.buildinfo"
           # Turn off every pre-enabled rockchip device, enable only FMX1 Pro.
           sed -i -E 's/^(CONFIG_TARGET_DEVICE_rockchip_armv8_DEVICE_[A-Za-z0-9_.-]+)=y$/# \1 is not set/' .config
@@ -129,16 +129,29 @@ jobs:
 
       - name: Update update manifest (device update address)
         run: |
-          IMG="istoreos-rockchip-armv8-rockchip_fmx1-pro-squashfs-sysupgrade.img.gz"
-          SHA="$(sha256sum "firmware/$IMG" | cut -d' ' -f1)"
+          # Do not hard-code the image name: with CONFIG_VERSION_FILENAMES the
+          # produced file may carry a version suffix. Pick the actual artifact.
+          IMG_PATH="$(ls firmware/*fmx1-pro-squashfs-sysupgrade.img.gz | head -n 1)"
+          [ -n "$IMG_PATH" ] || (echo "::error::squashfs sysupgrade image not found in firmware/" && exit 1)
+          IMG="$(basename "$IMG_PATH")"
+          SHA="$(sha256sum "$IMG_PATH" | cut -d' ' -f1)"
           TAG="v${{ steps.stamp.outputs.stamp }}"
           URL="https://github.com/${{ github.repository }}/releases/download/$TAG/$IMG"
           mkdir -p update
           printf '{\n  "version": "%s",\n  "url": "%s",\n  "sha256": "%s"\n}\n' \
             "${{ steps.stamp.outputs.stamp }}" "$URL" "$SHA" > update/update.json
           cat update/update.json
+          # main may have moved on while this build was running (it takes
+          # hours): rebase onto the latest main before pushing, otherwise the
+          # push is rejected as non-fast-forward.
+          cp update/update.json /tmp/update.json
+          git checkout -- update/update.json || true
+          git fetch origin main
+          git checkout -B main origin/main
+          mkdir -p update
+          cp /tmp/update.json update/update.json
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add update/update.json
           git commit -m "Point device update address at $TAG"
-          git push
+          git push origin main

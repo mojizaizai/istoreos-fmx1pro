@@ -28,6 +28,7 @@ if ! grep -q "Device/rockchip_fmx1-pro" target/linux/rockchip/image/armv8.mk; th
 define Device/rockchip_fmx1-pro
   DEVICE_VENDOR := Rockchip
   DEVICE_MODEL := FMX1 Pro
+  SUPPORTED_DEVICES := rockchip,fmx1-pro
   SOC := rk3399
   UBOOT_DEVICE_NAME := fmx1-pro-rk3399
   DEVICE_DTS_DIR := ../dts
@@ -84,7 +85,43 @@ if [ -f "$DTS_MK" ] && ! grep -q "rk3399-fmx1-pro.dtb" "$DTS_MK"; then
   sed -i 's|^dtb-\$(CONFIG_ROCKCHIP_RK3399) += rk3399-evb.dtb.*|&\n\tdtb-$(CONFIG_ROCKCHIP_RK3399) += rk3399-fmx1-pro.dtb|' "$DTS_MK" || true
 fi
 
-# --- 4. Rootfs overlay (fmx-update online-update tooling) ----------------------
+# --- 4. Board defaults (network + LED) ----------------------------------------
+# Without an entry the generic rockchip fallback already gives LAN=eth0/dhcp,
+# but pin it explicitly so a future fallback change cannot silently alter the
+# bypass-router default, and map the board's single work LED.
+NET="target/linux/rockchip/armv8/base-files/etc/board.d/02_network"
+if [ -f "$NET" ] && ! grep -q "rockchip,fmx1-pro" "$NET"; then
+  awk '
+    /^\tcase "\$board" in/ && !done {
+      print
+      print "\trockchip,fmx1-pro)"
+      print "\t\tucidef_set_interface_lan '\''eth0'\'' '\''dhcp'\''"
+      print "\t\t;;"
+      done=1
+      next
+    }
+    { print }
+  ' "$NET" > "$NET.tmp" && mv "$NET.tmp" "$NET"
+  grep -q "rockchip,fmx1-pro" "$NET" || fail "02_network board entry failed"
+  echo "board.d 02_network entry added"
+fi
+
+LEDS="target/linux/rockchip/armv8/base-files/etc/board.d/01_leds"
+if [ -f "$LEDS" ] && ! grep -q "rockchip,fmx1-pro" "$LEDS"; then
+  awk '
+    /^esac/ && !done {
+      print "rockchip,fmx1-pro)"
+      print "\tucidef_set_led_default \"work\" \"WORK\" \"r88:green:led\" \"1\""
+      print "\t;;"
+      done=1
+    }
+    { print }
+  ' "$LEDS" > "$LEDS.tmp" && mv "$LEDS.tmp" "$LEDS"
+  grep -q "rockchip,fmx1-pro" "$LEDS" || fail "01_leds board entry failed"
+  echo "board.d 01_leds entry added"
+fi
+
+# --- 5. Rootfs overlay (fmx-update online-update tooling) ----------------------
 if [ -d "$DEV_DIR/files" ]; then
   mkdir -p files
   cp -rf "$DEV_DIR/files/." files/

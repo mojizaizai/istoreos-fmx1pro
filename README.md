@@ -40,9 +40,16 @@ servers:
   sha256, checks the board name, and runs `sysupgrade` keeping your config.
   `fmx-update check` only checks; a cron job checks every Monday 04:00 and
   leaves a note in `/tmp/fmx1-update-available`.
-- The official iStoreOS **opkg feeds stay official** on purpose: app and
-  kmod installs come from the official mirrors (this build's kernel vermagic
-  matches upstream), and this repo does not host a package feed.
+- The official iStoreOS **opkg feeds stay official** on purpose, and this
+  repo does not host a package feed. Userspace apps and LuCI plugins from
+  the official feeds install fine. Kernel modules (kmod-*) are *expected*
+  to be compatible because the kernel config follows the official baseline,
+  but vermagic equality with any given official release is **not
+  guaranteed**: the build tracks the moving `istoreos-24.10` branch and
+  adjusts `.config` (e.g. it adds `kmod-usb-net-rtl8152` built into the
+  firmware), so a kmod whose vermagic differs will be refused by opkg.
+  Anything kernel-related that matters should be compiled into the
+  firmware instead of installed later.
 
 ## Flash
 
@@ -51,6 +58,24 @@ servers:
 2. Default login: `root` / `password`. The single NIC is LAN
    (bypass-router mode): plug it into your main router and find its IP there.
 3. Once verified, install to eMMC from the iStoreOS UI/terminal.
+
+## Known limitations / what needs on-device validation
+
+- The DTS was extracted from a 6.18.63 Armbian kernel while iStoreOS 24.10
+  builds Linux 6.6. Cross-version DT reuse can hit driver property drift;
+  first boot must verify: onboard GbE, USB 3.0, eMMC/TF, thermal/cpufreq.
+- The onboard Wi-Fi/Bluetooth almost certainly does **not** work: the DTS
+  keeps the Rockchip BSP-style nodes (`wireless-wlan`, `bluetooth-platdata`,
+  `fiq-debugger`) that mainline 6.6 drivers do not bind. Irrelevant for a
+  wired bypass router.
+- U-Boot reuses the same DTS. The labels referenced by
+  `rk3399-u-boot.dtsi` (`dmc`, `cru`, `dfi`, ...) are all present exactly
+  once, and its `&dmc` block supplies the `reg` the decompiled node lacks,
+  so the DTB is expected to build; SPL memory init with the Samsung
+  LPDDR3 4GB @1866 parameters can still only be proven on real hardware.
+- Board name is `rockchip,fmx1-pro` everywhere by construction: DTS root
+  `compatible`, the device definition's `SUPPORTED_DEVICES`, and the board
+  check in `fmx-update` all use exactly that string.
 
 Unofficial port for personal use; firmware comes from the official iStoreOS
 source tree, only the device definition is added here.
