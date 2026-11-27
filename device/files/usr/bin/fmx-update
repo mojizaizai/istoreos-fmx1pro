@@ -1,0 +1,79 @@
+#!/bin/sh
+# fmx-update - online update for the FMX1 Pro iStoreOS build.
+#
+# Firmware is published by GitHub Actions to the owner's repo releases;
+# update/update.json in that repo is the update manifest ("update address"):
+#   https://raw.githubusercontent.com/mojizaizai/istoreos-fmx1pro/main/update/update.json
+#
+# Usage:
+#   fmx-update          check, download, verify sha256, then sysupgrade (keeps config)
+#   fmx-update check    check only; writes /tmp/fmx1-update-available if newer
+#   fmx-update -y       no confirmation prompt
+#
+# The official iStoreOS opkg feeds are NOT touched: app/package installs keep
+# using the official mirrors (this build's kernel vermagic matches upstream).
+
+REPO="mojizaizai/istoreos-fmx1pro"
+MANIFEST="https://raw.githubusercontent.com/${REPO}/main/update/update.json"
+LOCAL_VER_FILE="/etc/fmx1-version"
+BOARD_FILE="/tmp/sysinfo/board_name"
+TMPIMG="/tmp/fmx1-sysupgrade.img.gz"
+
+say() { echo "== $*"; logger -t fmx-update "$*" 2>/dev/null; }
+
+board=$(cat "$BOARD_FILE" 2>/dev/null)
+if [ "$board" != "rockchip_fmx1-pro" ]; then
+	say "ERROR: board is '${board}', expected rockchip_fmx1-pro. Refusing to continue."
+	exit 1
+fi
+
+local_ver="none"
+[ -f "$LOCAL_VER_FILE" ] && local_ver=$(cat "$LOCAL_VER_FILE")
+
+say "checking ${MANIFEST}"
+json=$(wget -qO- "$MANIFEST") || { say "ERROR: cannot fetch update manifest"; exit 1; }
+
+if command -v jsonfilter >/dev/null 2>&1; then
+	remote_ver=$(echo "$json" | jsonfilter -e '@.version')
+	remote_url=$(echo "$json" | jsonfilter -e '@.url')
+	remote_sha=$(echo "$json" | jsonfilter -e '@.sha256')
+else
+	remote_ver=$(echo "$json" | grep -o '"version"[^,]*' | grep -o '[0-9][0-9.]*-[0-9]*')
+	remote_url=$(echo "$json" | grep -o '"url"[^,]*' | sed 's/.*"url"[^"]*"//; s/"$//')
+	remote_sha=$(echo "$json" | grep -o '"sha256"[^,]*' | sed 's/.*"sha256"[^"]*"//; s/"$//')
+fi
+
+[ -n "$remote_ver" ] && [ -n "$remote_url" ] && [ -n "$remote_sha" ] || {
+	say "ERROR: manifest is incomplete (version/url/sha256)"
+	exit 1
+}
+
+say "installed: ${local_ver}   latest: ${remote_ver}"
+
+if [ "$remote_ver" = "$local_ver" ]; then
+	say "already up to date"
+	rm -f /tmp/fmx1-update-available
+	exit 0
+fi
+
+echo "$remote_ver" > /tmp/fmx1-update-available
+[ "$1" = "check" ] && { say "update available: ${remote_ver} (run 'fmx-update' to install)"; exit 0; }
+
+if [ "$1" != "-y" ]; then
+	printf "Update to %s and reboot now? [y/N] " "$remote_ver"
+	read ans
+	case "$ans" in y|Y) ;; *) say "aborted"; exit 0 ;; esac
+fi
+
+say "downloading ${remote_url}"
+wget -qO "$TMPIMG" "$remote_url" || { say "ERROR: download failed"; rm -f "$TMPIMG"; exit 1; }
+
+say "verifying sha256"
+echo "${remote_sha}  ${TMPIMG}" | sha256sum -c - >/dev/null 2>&1 || {
+	say "ERROR: sha256 mismatch, refusing to flash"
+	rm -f "$TMPIMG"
+	exit 1
+}
+
+say "flashing (configuration will be kept), device will reboot..."
+sysupgrade "$TMPIMG"
