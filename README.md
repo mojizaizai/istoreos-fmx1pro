@@ -28,6 +28,22 @@ Native-style device port of **iStoreOS** to the **FMX1 Pro** board
 Actions → **Build iStoreOS for FMX1 Pro** → Run workflow.
 The firmware is attached to the run as an artifact and published as a Release.
 
+## Online update (device pulls from this repo)
+
+The firmware's **update address points at this repo**, not the official
+servers:
+
+- Every build publishes a Release and refreshes `update/update.json`
+  (version + asset URL + sha256) on the `main` branch.
+- The firmware ships with `/usr/bin/fmx-update`. Run it in the device
+  terminal: it reads the manifest, downloads the image, verifies the
+  sha256, checks the board name, and runs `sysupgrade` keeping your config.
+  `fmx-update check` only checks; a cron job checks every Monday 04:00 and
+  leaves a note in `/tmp/fmx1-update-available`.
+- The official iStoreOS **opkg feeds stay official** on purpose: app and
+  kmod installs come from the official mirrors (this build's kernel vermagic
+  matches upstream), and this repo does not host a package feed.
+
 ## Flash
 
 1. Write `istoreos-rockchip-armv8-rockchip_fmx1-pro-squashfs-sysupgrade.img.gz`
