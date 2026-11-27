@@ -55,6 +55,13 @@ jobs:
           echo "$STAMP" > openwrt/files/etc/fmx1-version
           echo "build stamp: $STAMP"
 
+      - name: Restore build cache (toolchain + ccache)
+        uses: klever1988/cachewrtbuild@main
+        with:
+          ccache: 'true'
+          mixkey: 'istoreos-24.10-armv8-fmx1pro'
+          prefix: ${{ github.workspace }}/openwrt
+
       - name: Use official build config (easepi-r1 baseline), FMX1 Pro only
         run: |
           cd openwrt
