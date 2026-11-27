@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * FMX1 Pro (RK3399) U-Boot device tree additions.
+ *
+ * The board uses Samsung LPDDR3 4GB @1866 SDRAM parameters
+ * (as used by the vendor / Armbian U-Boot for this board).
+ * rk3399-u-boot.dtsi provides the standard RK3399 SPL bootph
+ * properties and the spl-boot-order (eMMC first, then SD).
+ */
+#include "rk3399-u-boot.dtsi"
+#include "rk3399-sdram-lpddr3-samsung-4GB-1866.dtsi"
