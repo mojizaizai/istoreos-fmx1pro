@@ -84,4 +84,12 @@ if [ -f "$DTS_MK" ] && ! grep -q "rk3399-fmx1-pro.dtb" "$DTS_MK"; then
   sed -i 's|^dtb-\$(CONFIG_ROCKCHIP_RK3399) += rk3399-evb.dtb.*|&\n\tdtb-$(CONFIG_ROCKCHIP_RK3399) += rk3399-fmx1-pro.dtb|' "$DTS_MK" || true
 fi
 
+# --- 4. Rootfs overlay (fmx-update online-update tooling) ----------------------
+if [ -d "$DEV_DIR/files" ]; then
+  mkdir -p files
+  cp -rf "$DEV_DIR/files/." files/
+  chmod +x files/usr/bin/fmx-update files/etc/uci-defaults/99-fmx1-update 2>/dev/null || true
+  echo "rootfs overlay installed (fmx-update)"
+fi
+
 echo "FMX1 Pro device applied OK"
